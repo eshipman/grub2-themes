@@ -41,7 +41,7 @@ if [ "$UID" -eq "$ROOT_UID" ]; then
   echo -e "Backing up grub defaults..."
   largest="-1"
   # Look for the highest-numbered backup
-  for f in $(ls -a "/etc/defaults/" | grep -E 'grub.[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+.bak'); do
+  for f in $(ls -a "/etc/default/" | grep -E 'grub.[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+.bak'); do
       # If the number is higher than the previous highest, set the new largest
       num="$(echo "${f}" | cut --delimiter='-' -f 4 | cut --delimiter='.' -f 1)"
       if [[ "${num}" -gt "${largest}" ]]; then
@@ -49,7 +49,7 @@ if [ "$UID" -eq "$ROOT_UID" ]; then
       fi
   done
   # Create the next numbered backup, conforming to ISO 8601
-  cp "/etc/defaults/grub" "/etc/defaults/grub.$(date "+%Y-%m-%d")-$((largest + 1)).bak"
+  cp "/etc/default/grub" "/etc/default/grub.$(date "+%Y-%m-%d")-$((largest + 1)).bak"
 
   # Set the theme
   echo -e "Setting ${THEME} as default..."
