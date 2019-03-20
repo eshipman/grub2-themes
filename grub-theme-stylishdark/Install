@@ -1,11 +1,13 @@
 #!/bin/bash
 
 # StylishDark - Grub2 Dark Theme
+# Change this to the theme to be installed
+THEME="StylishDark"
 
 ROOT_UID=0
 
 # Welcome message
-echo -e "\n\t************************************\n\t*  StylishDark - Grub2 Dark Theme  *\n\t************************************"
+echo -e "\n\t******************************\n\t* ${THEME} - Grub2 Dark Theme  *\n\t******************************"
 
 # Check command avalibility
 function has_command() {
@@ -18,30 +20,87 @@ echo -e "\nChecking for root access..."
 if [ "$UID" -eq "$ROOT_UID" ]; then
 
   # Create themes directory if not exists
+  # (2019-03-20-01) E. Shipman - Added support for /boot/grub2
+  THEMES_DIR=""
   echo -e "Checking for the existence of themes directory..."
-  mkdir -p /boot/grub/themes
+  if [[ -d /boot/grub ]]; then
+    mkdir -p /boot/grub/themes
+    THEMES_DIR="/boot/grub/themes"
+  elif [[ -d /boot/grub2 ]]; then
+    mkdir -p /boot/grub2/themes
+    THEMES_DIR="/boot/grub2/themes"
+  fi
 
-  # Copy StylishDark
-  echo -e "Installing Vimix theme..."
-  cp -a StylishDark /boot/grub/themes
+  # Copy the theme
+  # (2019-03-20-02) E. Shipman - Fixed to be more reusable
+  echo -e "Installing ${THEME} theme..."
+  cp -a "./${THEME}" "${THEMES_DIR}"
 
-  # Set StylishDark
-  echo -e "Setting Vimix as default..."
+  # Backup the defaults
+  # (2019-03-20-05) E. Shipman - Added backup feature for grub defaults
+  echo -e "Backing up grub defaults..."
+  largest="-1"
+  # Look for the highest-numbered backup
+  for f in $(ls -a "/etc/defaults/" | grep -E 'grub.[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+.bak'); do
+      # If the number is higher than the previous highest, set the new largest
+      num="$(echo "${f}" | cut --delimiter='-' -f 4 | cut --delimiter='.' -f 1)"
+      if [[ "${num}" -gt "${largest}" ]]; then
+          largest="${num}"
+      fi
+  done
+  # Create the next numbered backup, conforming to ISO 8601
+  cp "/etc/defaults/grub" "/etc/defaults/grub.$(date "+%Y-%m-%d")-$((largest + 1)).bak"
+
+  # Set the theme
+  echo -e "Setting ${THEME} as default..."
   grep "GRUB_THEME=" /etc/default/grub 2>&1 >/dev/null && sed -i '/GRUB_THEME=/d' /etc/default/grub
-  echo "GRUB_THEME=\"/boot/grub/themes/StylishDark/theme.txt\"" >> /etc/default/grub
+  echo "GRUB_THEME=\"${THEMES_DIR}/${THEME}/theme.txt\"" >> /etc/default/grub
+
+  # (2019-03-20-03) E. Shipman - Added support for other grub.cfg locations
+  #   (e.g. /boot/efi/*), and how to handle a missing config
+  echo -e "Finding grub config..."
+  GRUB_CONFIG="$(find /boot -name grub.cfg)"
+  if [[ "$(echo "${GRUB_CONFIG}" | wc -l)" -gt "1" ]]; then
+    echo -e "\n\t******************************\n\t"
+    echo -e "*  Error! -> Multiple grub.cfg files exist *"
+    echo -e "${GRUB_CONFIG}" | awk '{printf " * %s * \n", $0}'
+    echo -e "\n\t******************************\n"
+    exit
+  elif [[ "$(echo "${GRUB_CONFIG}" | wc -l)" -eq "0" ]]; then
+    echo -e "\n\t******************************\n\t"
+    echo -e "*  Error! -> Cannot find grub.cfg under /boot *"
+    echo -e "\n\t******************************\n"
+  fi
+
+  # Backup grub config
+  # (2019-03-20-04) E. Shipman - Added backup feature for grub config
+  echo -e "Backing up grub config..."
+  largest="-1"
+  # Look for the highest-numbered backup
+  for f in $(ls -a "$(dirname ${GRUB_CONFIG})" | grep -E 'grub.cfg.[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+.bak'); do
+      # If the number is higher than the previous highest, set the new largest
+      num="$(echo "${f}" | cut --delimiter='-' -f 4 | cut --delimiter='.' -f 1)"
+      if [[ "${num}" -gt "${largest}" ]]; then
+          largest="${num}"
+      fi
+  done
+  # Create the next numbered backup, conforming to ISO 8601
+  cp "${GRUB_CONFIG}" "${GRUB_CONFIG}.$(date "+%Y-%m-%d")-$((largest + 1)).bak"
 
   # Update grub config
   echo -e "Updating grub config..."
   if has_command update-grub; then
     update-grub
   elif has_command grub-mkconfig; then
-    grub-mkconfig -o /boot/grub/grub.cfg
+    grub-mkconfig -o "${GRUB_CONFIG}"
+  elif has_command grub2-mkconfig; then
+    grub2-mkconfig -o "${GRUB_CONFIG}"
   fi
 
   # Success message
-  echo -e "\n\t          ***************\n\t          *  All done!  *\n\t          ***************\n"
+  echo -e "\n\t       ***************\n\t       *  All done!  *\n\t       ***************\n"
 
 else
-    # Error message
-    echo -e "\n\t   ******************************\n\t   *  Error! -> Run me as root  *\n\t   ******************************\n"
+  # Error message
+  echo -e "\n\t******************************\n\t*  Error! -> Run me as root  *\n\t******************************\n"
 fi
